@@ -56,9 +56,7 @@ def insert_into_tendersapp_tender(data):
                 on conflict (id) do update set 
                     updated = excluded.updated, 
                     status = excluded.status, 
-                    name = excluded.name,
-                    category = excluded.category,
-                    type = excluded.type;
+                    name = excluded.name;
                 """
             )
         conn.commit()
@@ -89,7 +87,6 @@ def insert_into_tendersapp_plan(data):
                 start_price = EXCLUDED.start_price,
                 name = EXCLUDED.name,
                 updated = EXCLUDED.updated,
-                customer_inn = EXCLUDED.customer_inn,
                 year = EXCLUDED.year;
                 """
             )

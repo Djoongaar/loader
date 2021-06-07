@@ -38,7 +38,7 @@ def update_tenders(customer_inn):
     chrome_options.add_argument("no-sandbox")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1580,920")
-    driver = webdriver.Chrome('/usr/bin/chromedriver', chrome_options=chrome_options)
+    driver = webdriver.Chrome('/home/eugene/Projects/loader/chromedriver', chrome_options=chrome_options)
     driver.get("https://zakupki.gov.ru/")
     input_search = driver.find_element_by_id("quickSearchForm_header_searchString")
     driver.execute_script("arguments[0].click();", input_search)
