@@ -42,6 +42,8 @@ def callbacks(message):
         say_hello(message)
     elif back == "/customers":
         customer_list(message)
+    elif back == "/main_customers":
+        customer_list(message)
     elif back == "None":
         print("None")
     else:
@@ -113,6 +115,14 @@ def next_customers(message):
 def customer_list(message):
     """ Функция записывает в ведис стэк клиентов """
     customers = sql_requests.customers_list()
+    States.add_customers(message.chat.id, customers)
+    next_customers(message)
+
+
+@bot.message_handler(commands=["main_customers"])
+def main_customer_list(message):
+    """ Функция записывает в ведис стэк клиентов """
+    customers = sql_requests.main_customers_list()
     States.add_customers(message.chat.id, customers)
     next_customers(message)
 
