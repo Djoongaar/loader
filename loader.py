@@ -7,7 +7,7 @@ import joblib
 from psycopg2 import errors
 from xvfbwrapper import Xvfb
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException, TimeoutException
 from seleniumwire import webdriver
 from isso_bot import bot
 from utils import tokenize_lemmatize, num_to_cat, num_to_type
@@ -35,10 +35,15 @@ svm_category_classifier = joblib.load('/home/eugene/Projects/loader/ml_classifie
 # ================================== CHROME OPTIONS ==================================
 
 chrome_options = Options()
-chrome_options.add_argument("no-sandbox")
+chrome_options.add_argument("enable-automation")
+chrome_options.add_argument("start-maximized")
+chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-gpu")
 chrome_options.add_argument("--window-size=1580,920")
 chrome_options.add_argument('--disable-dev-shm-usage')
+chrome_options.add_argument("--disable-browser-side-navigation")
+chrome_options.add_argument("--disable-infobars")
+chrome_options.add_argument("--disable-extensions")
 CHROMEDRIVER_PATH = '/home/eugene/Projects/loader/chromedriver'
 
 
@@ -149,83 +154,95 @@ def update_tenders(customer_inn):
     return new_tenders_count
 
 
-def download_tenders(customer_inn):
+def download_tenders(customer_inn, chat_id):
     """
         Качает все имеющиеся тендеры по ИНН контрагента, классифицирует по типу объекта,
         категориям работ и записывает в базу данных
-        :param customer_inn:
-        """
-
-    vdisplay = Xvfb()
-    vdisplay.start()
-    driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
-    driver.get("https://zakupki.gov.ru/")
-    input_search = driver.find_element_by_id("quickSearchForm_header_searchString")
-    input_search.click()
-    input_search.send_keys(customer_inn)
-    time.sleep(0.5)
-    input_search.submit()
-    time.sleep(random.randint(1, 3))
-    tenders = []
-    # Запускаем цикл сбора информации и складываем в tenders
-    while True:
+    """
+    count = 0
+    for year in range(2021, 2012, -1):
+        count_in_year = 0
+        driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
+        driver.get(f"""https://zakupki.gov.ru/epz/order/extendedsearch/results.html?searchString={customer_inn}& \
+            morphology=on&search-filter=%D0%94%D0%B0%D1%82%D0%B5+%D1%80%D0%B0%D0%B7%D0%BC%D0%B5%D1%89%D0%B5%D0%BD%D0%B8%D1%8F& \
+            pageNumber=1&sortDirection=false&recordsPerPage=_10&showLotsInfoHidden=false&sortBy=UPDATE_DATE&fz44=on&fz223=on& \
+            af=on&ca=on&pc=on&pa=on&currencyIdGeneral=-1&publishDateFrom=01.01.{year}&publishDateTo=31.12.{year}""")
         time.sleep(0.5)
+        loaded_tenders = [d['pk'] for d in sql_requests.Customers.get_all_tenders(customer_inn)]
+        # Запускаем цикл сбора информации и складываем в tenders
+        while True:
+            time.sleep(1)
+            # Загрузка данных по тендеру
+            page = driver.page_source
+            soup = BeautifulSoup(page, 'html.parser')
+            numbers = soup.find_all("div", class_="search-registry-entry-block box-shadow-search-input")
+            new_tenders = []
+            for i in numbers:
+                try:
+                    number = i.find("div", class_="registry-entry__header-mid__number").text.strip()[2:]
+                    start_prices = sum([int(''.join(re.findall(r'\d', price.text))) / 100 for price in i
+                                       .find_all("div", class_="price-block__value")])
+                    dates = i.find_all("div", class_="data-block mt-auto")
+                    created = "-".join(
+                        re.findall(r'\d+', dates[0].find_all("div", class_="data-block__value")[0].text)[::-1])
+                    updated_year, updated_month, updated_date = \
+                        re.findall(r'\d+', dates[0].find_all("div", class_="data-block__value")[1].text)[::-1]
+                    statuses = i.find("div", class_="registry-entry__header-mid__title").text.strip()
+                    names = i.find("div", class_="registry-entry__body-value").text.strip()
+                    updated = datetime.date(int(updated_year), int(updated_month), int(updated_date))
+                    new_tenders.append({
+                        "model": "tendersapp.tender",
+                        "pk": number,
+                        "fields": {
+                            "start_price": start_prices,
+                            "final_price": 0,
+                            "created": created,
+                            "updated": updated,
+                            "status": statuses,
+                            "name": names,
+                            "customer_inn": str(customer_inn)
+                        }
+                    })
+                except:
+                    print(f'Exception erased with number {i}')
+            if new_tenders:
+                for t in new_tenders:
+                    if t['pk'] not in loaded_tenders:
+                        # Идем циклом по тендерам и вставляем в СУБД
+                        tender = classify_tender(t)
+                        # print(tender['fields']['name'])
+                        # print(tender['fields']['type'], tender['fields']['category'])
+                        try:
+                            sql_requests.insert_into_tendersapp_tender(tender)
+                            count_in_year += 1
+                            count += 1
+                            time.sleep(0.1)
+                        except errors.lookup('42601') as e:
+                            # psycopg2.errors.SyntaxError
+                            print(f"WARNING!!! in tender {tender} raised an exception {e}")
+                try:
+                    button_next = driver.find_element_by_class_name("paginator-button-next")
+                    driver.execute_script("arguments[0].click();", button_next)
+                except NoSuchElementException:
+                    mes = f"{year} is finished. Found {count_in_year} new tenders."
+                    bot.send_message(chat_id, mes)
+                    print(mes)
+                    driver.close()
+                    break
+                except TimeoutException:
+                    driver.close()
+                    mes = "Timeout Excaption raised. Recoursive start of function"
+                    bot.send_message(chat_id, mes)
+                    download_tenders(customer_inn, chat_id)
+                    break
+            else:
+                mes = f"{customer_inn} is finished. Found {count} new tenders."
+                bot.send_message(chat_id, mes)
+                print(mes)
+                driver.close()
+                break
 
-        # Загрузка данных по тендеру
-        page = driver.page_source
-        soup = BeautifulSoup(page, 'html.parser')
-        numbers = soup.find_all("div", class_="search-registry-entry-block box-shadow-search-input")
-        new_tenders = []
-        for i in numbers:
-            try:
-                number = i.find("div", class_="registry-entry__header-mid__number").text.strip()[2:]
-                start_prices = sum([int(''.join(re.findall(r'\d', price.text))) / 100 for price in i
-                                   .find_all("div", class_="price-block__value")])
-                dates = i.find_all("div", class_="data-block mt-auto")
-                created = "-".join(
-                    re.findall(r'\d+', dates[0].find_all("div", class_="data-block__value")[0].text)[::-1])
-                updated_year, updated_month, updated_date = \
-                    re.findall(r'\d+', dates[0].find_all("div", class_="data-block__value")[1].text)[::-1]
-                statuses = i.find("div", class_="registry-entry__header-mid__title").text.strip()
-                names = i.find("div", class_="registry-entry__body-value").text.strip()
-                updated = datetime.date(int(updated_year), int(updated_month), int(updated_date))
-                new_tenders.append({
-                    "model": "tendersapp.tender",
-                    "pk": number,
-                    "fields": {
-                        "start_price": start_prices,
-                        "final_price": 0,
-                        "created": created,
-                        "updated": updated,
-                        "status": statuses,
-                        "name": names,
-                        "customer_inn": str(customer_inn)
-                    }
-                })
-            except:
-                print(f'Exception erased with number {i}')
-        time.sleep(0.5)
-        tenders.extend(new_tenders)
-        try:
-            button_next = driver.find_element_by_class_name("paginator-button-next")
-            driver.execute_script("arguments[0].click();", button_next)
-            time.sleep(random.randint(1, 3))
-        except NoSuchElementException:
-            print(f'Обновлено {len(tenders)}!')
-            break
-    driver.close()
-    vdisplay.stop()
-    for t in tenders:
-        # Идем циклом по тендерам и вставляем в СУБД
-        tender = classify_tender(t)
-        print(tender['fields']['name'])
-        print(tender['fields']['type'], tender['fields']['category'])
-        try:
-            sql_requests.insert_into_tendersapp_tender(tender)
-        except errors.lookup('42601') as e:
-            # psycopg2.errors.SyntaxError
-            print(f"WARNING!!! in tender {tender} raised an exception {e}")
-            pass
+    return count
 
 
 # ================================== ЗАГРУЗКА ПЛАН-ГРАФИКОВ ==================================

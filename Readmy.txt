@@ -1,0 +1,17 @@
+# Посмотреть логи консоли
+journalctl --user-unit loader.service
+
+# Запустить демон
+systemctl --user start loader.service
+
+# Проверить статус демона
+systemctl --user status loader.service
+
+# Перезапустить демона
+systemctl --user restart loader.service
+
+# Перезапустить демона
+systemctl --user daemon-reload
+
+# Путь к настрокам демона
+sudo nano /etc/systemd/user/loader.service

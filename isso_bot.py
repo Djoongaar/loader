@@ -145,6 +145,10 @@ def customer_details(message):
 
     bot.send_message(message.chat.id, "<b>Обновить тендеры: </b>\n /update_tenders\n", parse_mode="HTML")
 
+    # ---------------------   ЗАГРУЗИТЬ ВСЕ ТЕНДЕРЫ КОНТРАГЕНТА   ---------------------
+
+    bot.send_message(message.chat.id, "<b>Обновить тендеры: </b>\n /download_tenders\n", parse_mode="HTML")
+
     # ---------------------   ПЛАН ЗАКУПОК КОНТРАГЕНТА   ---------------------
     plans_report = sql_requests.plans_report(message.text[1:])
     if plans_report:
@@ -173,6 +177,20 @@ def update_tenders(message):
     mes = f"Начинаю загрузку клиента: {customer['title']}"
     bot.send_message(message.chat.id, mes, parse_mode="HTML")
     result = loader.update_tenders(States.get_inn(message.chat.id))
+    if result:
+        mes = f"Успешно загружено {result} тендера(-ов)"
+        bot.send_message(message.chat.id, mes, parse_mode="HTML")
+    else:
+        mes = f"Что-то пошло не так: {States.get_inn(message.chat.id)}"
+        bot.send_message(message.chat.id, mes, parse_mode="HTML")
+
+
+@bot.message_handler(commands=["download_tenders"])
+def download_tenders(message):
+    customer = sql_requests.get_company_title(States.get_inn(message.chat.id))
+    mes = f"Начинаю загрузку клиента: {customer['title']}"
+    bot.send_message(message.chat.id, mes, parse_mode="HTML")
+    result = loader.download_tenders(States.get_inn(message.chat.id), message.chat.id)
     if result:
         mes = f"Успешно загружено {result} тендера(-ов)"
         bot.send_message(message.chat.id, mes, parse_mode="HTML")
