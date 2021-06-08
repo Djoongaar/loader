@@ -23,6 +23,48 @@ def get_rate(money):
     return value
 
 
+# =============================== MAIN CUSTOMERS INNS ===============================
+
+MAIN_CUSTOMERS_INNS = (
+        "7722765428",  # ГБУ Гормост
+        "7728381587",  # ГКУ УДМС
+        "7717151380",  # ГК Автодор
+        "7806215195",  # ГБУ МОСТОТРЕСТ
+        "5000001525",  # Мосавтодор
+        "1660049283",  # Главтатдолртранс
+        "1001117010",  # "ФКУ УПРДОР 'КОЛА'"
+        "1660061210",  # "ФКУ 'ВОЛГО-ВЯТСКУПРАВТОДОР'"
+        "2126000323",  # "ФКУ УПРДОР 'ПРИКАМЬЕ'"
+        "3800000140",  # "ФКУ УПРДОР 'ПРИБАЙКАЛЬЕ'"
+        "5031035549",  # "ФКУ УПРДОР МОСКВА - НИЖНИЙ НОВГОРОД"
+        "6725000810",  # "ФКУ УПРДОР МОСКВА-БОБРУЙСК"
+        "6450108421",  # "ФКУ УПРДОР ""НИЖНЕ-ВОЛЖСКОЕ"""
+        "3525065660",  # "ФКУ УПРДОР ""ХОЛМОГОРЫ"""
+        "2309033598",  # "ФКУ УПРДОР 'КАСПИЙ'"
+        "4909083435",  # "ФКУ УПРДОР 'ТАМАНЬ'"
+        "5752000133",  # "ФКУ УПРДОР МОСКВА-ХАРЬКОВ"
+        "6832018699",  # "ФКУ УПРДОР МОСКВА - ВОЛГОГРАД"
+        "6905005038",  # "ФКУ УПРДОР 'РОССИЯ'"
+        "7714125897",  # "ФКУ 'ЦЕНТРАВТОМАГИСТРАЛЬ'"
+        "7826062821",  # "ФКУ УПРДОР 'СЕВЕРО-ЗАПАД'"
+        "2320100329",  # "ФКУ УПРДОР 'ЧЕРНОМОРЬЕ'"
+        # "1435193127",  # "ФКУ УПРДОР 'ВИЛЮЙ'"
+        # "0326012322",  # "ФКУ УПРДОР 'ЮЖНЫЙ БАЙКАЛ'"
+        # "2632041647",  # "ФКУ УПРДОР 'КАВКАЗ'"
+        # "2721144517",  # "ФКУ 'ДАЛЬУПРАВТОДОР'"
+        # "7223007316",  # "ФКУ 'УРАЛУПРАВТОДОР'"
+        # "7451189048",  # "ФКУ УПРДОР 'ЮЖНЫЙ УРАЛ'"
+        # "2460028834",  # "ФКУ УПРДОР 'ЕНИСЕЙ'"
+        # "5405201071",  # "ФКУ 'СИБУПРАВТОДОР'"
+        # "0278007048",  # "ФКУ УПРДОР 'ПРИУРАЛЬЕ'"
+        # "1402008636",  # "ФКУ УПРДОР 'ЛЕНА'"
+        # "7536053744",  # "ФКУ УПРДОР 'ЗАБАЙКАЛЬЕ'"
+        # "2725022365",  # "ФКУ ДСД ""ДАЛЬНИЙ ВОСТОК"""
+        # "2225061905",  # "ФКУ УПРДОР ""АЛТАЙ"""
+        # "5836010699",  # "ФКУ ""ПОВОЛЖУПРАВТОДОР"""
+        # "6147014910",  # "ФКУ УПРДОР 'АЗОВ'"
+)
+
 # =============================== INSERT INTO DATABASE ===============================
 
 
@@ -160,23 +202,6 @@ def insert_into_projectsapp_project(data):
             )
         conn.commit()
 
-# =============================== UPDATE DATABASE ===============================
-
-
-def get_latest_date_by_customer(customer_inn):
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                select updated
-                from tendersapp_tender
-                where customer_inn = '{customer_inn}'
-                order by updated desc
-                limit 1
-                """
-            )
-            return cursor.fetchone()[0]
-
 
 # =============================== UPDATE DATABASE ===============================
 
@@ -227,161 +252,6 @@ def get_company_title(customer_inn):
     except KeyError as e:
         print(e)
         return False
-
-
-def customer_details(customer_inn):
-    report = {}
-    try:
-        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-            with conn.cursor(cursor_factory=DictCursor) as cursor:
-                cursor.execute(
-                    f"""
-                    select title, name, fullname, form_title, address, inn, kpp, management
-                    from projectsapp_customer
-                    where inn = '{customer_inn}'
-                    """
-                )
-                for i in cursor:
-                    report['title'] = i['title']
-                    report['name'] = i['name']
-                    report['form_title'] = i['form_title']
-                    report['fullname'] = i['fullname']
-                    report['address'] = i['address']
-                    report['inn'] = i['inn']
-                    report['kpp'] = i['kpp']
-                    report['management'] = i['management']
-        return f"<b>Название организации: </b>\n" \
-               f"{report['fullname']}\n" \
-               f"\n" \
-               f"<b>ИНН / КПП:</b>\n" \
-               f"{report['inn']} / {report['kpp']}\n" \
-               f"\n" \
-               f"<b>Адрес: </b>\n" \
-               f"{report['address']}\n" \
-               f" \n" \
-               f"<b>Форма организации:</b>\n" \
-               f"{report['form_title']}\n" \
-               f"\n" \
-               f"<b>{report['management'].title()}:</b>\n" \
-               f"{report['name']}"
-    except KeyError as e:
-        print(e)
-        return False
-
-
-def category_report(customer_inn):
-    bridges = {
-        'КАТЕГОРИЯ 1': 0,
-        'КАТЕГОРИЯ 2': 0,
-        'КАТЕГОРИЯ 3': 0,
-        'КАТЕГОРИЯ 4': 0
-    }
-    customers = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                select count(p.id) as count, p.category
-                from projectsapp_project as p
-                join projectsapp_customer as c
-                on p.customer_id = c.id
-                where c.inn = '{customer_inn}'
-                group by p.category
-                """
-            )
-            for i in cursor:
-                bridges[f'КАТЕГОРИЯ {i["category"]}'] = f'{i["count"]}'
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                 SELECT count(*) AS count,
-                    c.title,
-                    c.fullname,
-                    c.inn
-                   FROM projectsapp_project p
-                     JOIN projectsapp_customer c ON p.customer_id = c.id
-                  GROUP BY c.id
-                  ORDER BY (count(*)) DESC
-                 LIMIT 5;
-                """
-            )
-            for i in cursor:
-                customers.append({
-                    "name": i['title'],
-                    "fullname": i['fullname'],
-                    "inn": i['inn'],
-                    "count": int(i["count"])
-                })
-    categories = [i for i in bridges.keys()]
-    values = [int(i) for i in bridges.values()]
-    if sum(values):
-        pd.DataFrame(values, categories, columns=['Количество']).plot(kind='bar', color='magenta', rot=0, width=0.8)
-        plt.title('Количество сооружений по категориям, шт.')
-        category_hist_path = os.path.join('media', f'category_{customer_inn}.png')
-        plt.savefig(category_hist_path)
-        plt.close()
-        return category_hist_path
-    else:
-        return False
-
-
-def type_report(customer_inn):
-    types = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                SELECT count(p.id),
-                    'МОСТЫ'::text as types
-                   FROM projectsapp_project as p
-                   JOIN projectsapp_customer as c
-                    ON p.customer_id = c.id
-                  WHERE c.inn::text = '{customer_inn}' and
-                  (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'мост'))
-
-                UNION
-
-                SELECT count(p.id),
-                    'ПУТЕПРОВОДЫ'::text as types
-                   FROM projectsapp_project as p
-                   JOIN projectsapp_customer as c
-                    ON p.customer_id = c.id
-                  WHERE c.inn::text = '{customer_inn}' and
-                  (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'путепровод'))
-
-                UNION
-
-                SELECT count(p.id),
-                    'ЭСТАКАДЫ'::text as types
-                   FROM projectsapp_project as p
-                   JOIN projectsapp_customer as c
-                    ON p.customer_id = c.id
-                  WHERE c.inn::text = '{customer_inn}' and
-                  (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'эстакада'))
-
-                UNION
-
-                SELECT count(p.id),
-                    'ТОННЕЛИ'::text as types
-                   FROM projectsapp_project as p
-                   JOIN projectsapp_customer as c
-                    ON p.customer_id = c.id
-                  WHERE c.inn::text = '{customer_inn}' and
-                  (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'тоннель'));
-                """
-            )
-            for i in cursor:
-                types.append({
-                    "types": i["types"],
-                    "count": i["count"]
-                })
-    types = pd.DataFrame(types)
-    plt.bar(types['types'], types['count'], width=0.8)
-    plt.title('Количество сооружений по типам, шт.')
-    types_hist_path = os.path.join('media', f'types_{customer_inn}.png')
-    plt.savefig(types_hist_path)
-    plt.close()
-    return types_hist_path
 
 
 def report_2019(customer_inn):
@@ -536,181 +406,283 @@ def regions_list():
     return regions
 
 
-def customers_list():
-    customers = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
+# =============================== CUSTOMERS INFO ===============================
+
+class Customers:
+    """ Класс работы со списком Заказчиков """
+
+    def __init__(self, inns: tuple = None):
+        if inns:
+            self.inns = inns
+        else:
+            self.inns = MAIN_CUSTOMERS_INNS
+
+    def render_to_message(self):
+        """ Возвращает строку html со списокм заказчиков для вывода в сообщении бота """
+        customers = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                         SELECT count(*) AS count,
+                            c.title,
+                            c.inn
+                           FROM projectsapp_project p 
+                             JOIN projectsapp_customer c ON p.customer_id = c.id
+                          WHERE c.inn = ANY(ARRAY[{list(self.inns)}])
+                          GROUP BY c.id
+                          ORDER BY (count(*)) DESC;
+                        """
+                )
+                for i in cursor:
+                    customers.append(
+
+                        f"{i['title']}\n"
+                        f"ИНН: <i>/{i['inn']}</i>\n"
+                    )
+        return " ".join(customers)
+
+    def not_updated_customers(self):
+        """ Возвращает список заказчиков готовых к обновлению """
+        customers = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                        SELECT count(*) AS count,
+                        c.fullname,
+                        c.inn,
+                        c.tenders_updated,
+                        plans_updated
+    
+                        FROM projectsapp_project p
+                        FULL OUTER JOIN projectsapp_customer c ON p.customer_id = c.id 
+                        where c.tenders_updated < current_timestamp - interval '24 hour' 
+                        and c.inn = ANY(ARRAY[{list(self.inns)}])
+                        GROUP BY c.id
+                        ORDER BY (count(*)) DESC;
+                    """
+                )
+                for i in cursor:
+                    customers.append(i['inn'])
+        return customers
+
+    @staticmethod
+    def get_latest_date_by_customer(customer_inn):
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                    select updated
+                    from tendersapp_tender
+                    where customer_inn = '{customer_inn}'
+                    order by updated desc
+                    limit 1
+                    """
+                )
+                return cursor.fetchone()[0]
+
+    def get_projects_list(self):
+        """ Возвращает список id тендеров по строительству и ремонту ИССО """
+        projects = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                    select *
+                    from tendersapp_tender
+                    where customer_inn = ANY(ARRAY[{list(self.inns)}]) 
+                        and type = 'Искусственное сооружение' 
+                        and (category = 'Строительство' or category = 'Капитальный ремонт')
+                    """
+                )
+                for i in cursor:
+                    projects.append(i['id'])
+        return projects
+
+    def get_all_tenders(self):
+        """ Возвращает список всех тендеров """
+        tenders = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                    select * from tendersapp_tender
+                    where customer_inn = ANY(ARRAY[{list(self.inns)}]) 
+                    """
+                )
+                data = cursor.fetchall()
+                for d in data:
+                    tenders.append(
+                        {
+                            'pk': d[0],
+                            'fields': {
+                                'name': d[1],
+                                'start_price': d[2],
+                                'final_price': d[3],
+                                'created': d[4],
+                                'updated': d[5],
+                                'status': d[6],
+                                'customer_inn': d[7],
+                                'category': d[8],
+                                'type': d[9],
+                                'last_checked': d[10]
+                            }
+                        }
+                    )
+            return tenders
+
+    @staticmethod
+    def customer_details(customer_inn):
+        report = {}
+        try:
+            with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cursor:
+                    cursor.execute(
+                        f"""
+                        select title, name, fullname, form_title, address, inn, kpp, management
+                        from projectsapp_customer
+                        where inn = '{customer_inn}'
+                        """
+                    )
+                    for i in cursor:
+                        report['title'] = i['title']
+                        report['name'] = i['name']
+                        report['form_title'] = i['form_title']
+                        report['fullname'] = i['fullname']
+                        report['address'] = i['address']
+                        report['inn'] = i['inn']
+                        report['kpp'] = i['kpp']
+                        report['management'] = i['management']
+            return f"<b>Название организации: </b>\n" \
+                   f"{report['fullname']}\n" \
+                   f"\n" \
+                   f"<b>ИНН / КПП:</b>\n" \
+                   f"{report['inn']} / {report['kpp']}\n" \
+                   f"\n" \
+                   f"<b>Адрес: </b>\n" \
+                   f"{report['address']}\n" \
+                   f" \n" \
+                   f"<b>Форма организации:</b>\n" \
+                   f"{report['form_title']}\n" \
+                   f"\n" \
+                   f"<b>{report['management'].title()}:</b>\n" \
+                   f"{report['name']}"
+        except KeyError as e:
+            print(e)
+            return False
+
+    @staticmethod
+    def type_report(customer_inn):
+        types = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT count(p.id),
+                        'МОСТЫ'::text as types
+                       FROM projectsapp_project as p
+                       JOIN projectsapp_customer as c
+                        ON p.customer_id = c.id
+                      WHERE c.inn::text = '{customer_inn}' and
+                      (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'мост'))
+
+                    UNION
+
+                    SELECT count(p.id),
+                        'ПУТЕПРОВОДЫ'::text as types
+                       FROM projectsapp_project as p
+                       JOIN projectsapp_customer as c
+                        ON p.customer_id = c.id
+                      WHERE c.inn::text = '{customer_inn}' and
+                      (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'путепровод'))
+
+                    UNION
+
+                    SELECT count(p.id),
+                        'ЭСТАКАДЫ'::text as types
+                       FROM projectsapp_project as p
+                       JOIN projectsapp_customer as c
+                        ON p.customer_id = c.id
+                      WHERE c.inn::text = '{customer_inn}' and
+                      (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'эстакада'))
+
+                    UNION
+
+                    SELECT count(p.id),
+                        'ТОННЕЛИ'::text as types
+                       FROM projectsapp_project as p
+                       JOIN projectsapp_customer as c
+                        ON p.customer_id = c.id
+                      WHERE c.inn::text = '{customer_inn}' and
+                      (to_tsvector('russian', p.name) @@ to_tsquery('russian', 'тоннель'));
+                    """
+                )
+                for i in cursor:
+                    types.append({
+                        "types": i["types"],
+                        "count": i["count"]
+                    })
+        types = pd.DataFrame(types)
+        plt.bar(types['types'], types['count'], width=0.8)
+        plt.title('Количество сооружений по типам, шт.')
+        types_hist_path = os.path.join('media', f'types_{customer_inn}.png')
+        plt.savefig(types_hist_path)
+        plt.close()
+        return types_hist_path
+
+    @staticmethod
+    def category_report(customer_inn):
+        bridges = {
+            'КАТЕГОРИЯ 1': 0,
+            'КАТЕГОРИЯ 2': 0,
+            'КАТЕГОРИЯ 3': 0,
+            'КАТЕГОРИЯ 4': 0
+        }
+        customers = []
+        with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
+                    select count(p.id) as count, p.category
+                    from projectsapp_project as p
+                    join projectsapp_customer as c
+                    on p.customer_id = c.id
+                    where c.inn = '{customer_inn}'
+                    group by p.category
+                    """
+                )
+                for i in cursor:
+                    bridges[f'КАТЕГОРИЯ {i["category"]}'] = f'{i["count"]}'
+            with conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(
+                    f"""
                      SELECT count(*) AS count,
                         c.title,
+                        c.fullname,
                         c.inn
                        FROM projectsapp_project p
                          JOIN projectsapp_customer c ON p.customer_id = c.id
                       GROUP BY c.id
                       ORDER BY (count(*)) DESC
-                     LIMIT 200;
+                     LIMIT 5;
                     """
-            )
-            for i in cursor:
-                customers.append(
-                    f"{i['title']}\n"
-                    f"ИНН: <i>/{i['inn']}</i>"
                 )
-    return customers
-
-
-def main_customers_list():
-    inns = [
-        "7722765428",  # ГБУ Гормост
-        "7728381587",  # ГКУ УДМС
-        "7717151380",  # ГК Автодор
-        "7806215195",  # ГБУ МОСТОТРЕСТ
-        "5000001525",  # Мосавтодор
-        "1660049283",  # Главтатдолртранс
-        "0326012322",  # "ФКУ УПРДОР 'ЮЖНЫЙ БАЙКАЛ'"
-        "1001117010",  # "ФКУ УПРДОР 'КОЛА'"
-        "1660061210",  # "ФКУ 'ВОЛГО-ВЯТСКУПРАВТОДОР'"
-        "2126000323",  # "ФКУ УПРДОР 'ПРИКАМЬЕ'"
-        "2632041647",  # "ФКУ УПРДОР 'КАВКАЗ'"
-        "2721144517",  # "ФКУ 'ДАЛЬУПРАВТОДОР'"
-        "3800000140",  # "ФКУ УПРДОР 'ПРИБАЙКАЛЬЕ'"
-        "5031035549",  # "ФКУ УПРДОР МОСКВА - НИЖНИЙ НОВГОРОД"
-        "6147014910",  # "ФКУ УПРДОР 'АЗОВ'"
-        "6725000810",  # "ФКУ УПРДОР МОСКВА-БОБРУЙСК"
-        "6450108421",  # "ФКУ УПРДОР ""НИЖНЕ-ВОЛЖСКОЕ"""
-        "7536053744",  # "ФКУ УПРДОР 'ЗАБАЙКАЛЬЕ'"
-        "2725022365",  # "ФКУ ДСД ""ДАЛЬНИЙ ВОСТОК"""
-        "2225061905",  # "ФКУ УПРДОР ""АЛТАЙ"""
-        "5836010699",  # "ФКУ ""ПОВОЛЖУПРАВТОДОР"""
-        "3525065660",  # "ФКУ УПРДОР ""ХОЛМОГОРЫ"""
-        "5405201071",  # "ФКУ 'СИБУПРАВТОДОР'"
-        "0278007048",  # "ФКУ УПРДОР 'ПРИУРАЛЬЕ'"
-        "1402008636",  # "ФКУ УПРДОР 'ЛЕНА'"
-        "2309033598",  # "ФКУ УПРДОР 'КАСПИЙ'"
-        "2460028834",  # "ФКУ УПРДОР 'ЕНИСЕЙ'"
-        "4909083435",  # "ФКУ УПРДОР 'ТАМАНЬ'"
-        "5752000133",  # "ФКУ УПРДОР МОСКВА-ХАРЬКОВ"
-        "6832018699",  # "ФКУ УПРДОР МОСКВА - ВОЛГОГРАД"
-        "6905005038",  # "ФКУ УПРДОР 'РОССИЯ'"
-        "7223007316",  # "ФКУ 'УРАЛУПРАВТОДОР'"
-        "7451189048",  # "ФКУ УПРДОР 'ЮЖНЫЙ УРАЛ'"
-        "7714125897",  # "ФКУ 'ЦЕНТРАВТОМАГИСТРАЛЬ'"
-        "7826062821",  # "ФКУ УПРДОР 'СЕВЕРО-ЗАПАД'"
-        "2320100329",  # "ФКУ УПРДОР 'ЧЕРНОМОРЬЕ'"
-        "1435193127"  # "ФКУ УПРДОР 'ВИЛЮЙ'"
-    ]
-    customers = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                     SELECT count(*) AS count,
-                        c.title,
-                        c.inn
-                       FROM projectsapp_project p 
-                         JOIN projectsapp_customer c ON p.customer_id = c.id
-                      WHERE c.inn = ANY(ARRAY[{inns}])
-                      GROUP BY c.id
-                      ORDER BY (count(*)) DESC;
-                    """
-            )
-            for i in cursor:
-                customers.append(
-                    f"{i['title']}\n"
-                    f"ИНН: <i>/{i['inn']}</i>"
-                )
-    return customers
-
-
-def customers_to_update():
-    customers = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                    SELECT count(*) AS count,
-                    c.fullname,
-                    c.inn,
-                    c.tenders_updated,
-                    plans_updated
-
-                    FROM projectsapp_project p
-                    FULL OUTER JOIN projectsapp_customer c ON p.customer_id = c.id 
-                    where c.tenders_updated < current_timestamp - interval '24 hour'
-                    GROUP BY c.id
-                    ORDER BY (count(*)) DESC;
-                """
-            )
-            for i in cursor:
-                customers.append({
-                    "count": i['count'],
-                    "fullname": i['fullname'],
-                    "inn": i['inn']
-                })
-    return customers
-
-
-def get_projects_list(customer_inn: str) -> list:
-    """
-    Возвращает список id проектов по строительству и ремонту ИССО
-    :param customer_inn: str or int
-    :return: list(str)
-    """
-    projects = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                select *
-                from tendersapp_tender
-                where customer_inn = '{customer_inn}' 
-                    and type = 'Искусственное сооружение' 
-                    and (category = 'Строительство' or category = 'Капитальный ремонт')
-                """
-            )
-            for i in cursor:
-                projects.append(i['id'])
-    try:
-        path = f"documents/{customer_inn}"
-        loaded_projects = [filename for filename in os.listdir(path)]
-        projects = [x for x in projects if x not in loaded_projects]
-    except:
-        e = sys.exc_info()[0]
-        print(e)
-    return projects
-
-# =============================== SELECT FROM DATABASE ===============================
-
-
-def select_from_database(customer_inn):
-    tenders = []
-    with closing(psycopg2.connect(dbname=DATABASE, user=USER, password=PASSWORD, host=HOST)) as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.execute(
-                f"""
-                select * from tendersapp_tender
-                where customer_inn = '{customer_inn}'
-                """
-            )
-            data = cursor.fetchall()
-            for d in data:
-                tenders.append(
-                    {
-                        'pk': d[0],
-                        'fields': {
-                            'name': d[1],
-                            'start_price': d[2],
-                            'final_price': d[3],
-                            'created': d[4],
-                            'updated': d[5],
-                            'status': d[6],
-                            'customer_inn': d[7],
-                            'category': d[8],
-                            'type': d[9],
-                            'last_checked': d[10]
-                        }
-                    }
-                )
-        return tenders
-
+                for i in cursor:
+                    customers.append({
+                        "name": i['title'],
+                        "fullname": i['fullname'],
+                        "inn": i['inn'],
+                        "count": int(i["count"])
+                    })
+        categories = [i for i in bridges.keys()]
+        values = [int(i) for i in bridges.values()]
+        if sum(values):
+            pd.DataFrame(values, categories, columns=['Количество']).plot(kind='bar', color='magenta', rot=0, width=0.8)
+            plt.title('Количество сооружений по категориям, шт.')
+            category_hist_path = os.path.join('media', f'category_{customer_inn}.png')
+            plt.savefig(category_hist_path)
+            plt.close()
+            return category_hist_path
+        else:
+            return False

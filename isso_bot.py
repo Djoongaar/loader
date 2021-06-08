@@ -9,8 +9,10 @@ import telebot
 import sql_requests
 from db_worker import States
 import nltk
+
 nltk.download('stopwords')
 nltk.download('punkt')
+
 svm_type_classifier = joblib.load('/home/eugene/Projects/loader/ml_classifiers/svm_type_classifier.joblib')
 svm_category_classifier = joblib.load('/home/eugene/Projects/loader/ml_classifiers/svm_category_classifier.joblib')
 
@@ -40,10 +42,8 @@ def callbacks(message):
     back = States.get_state(message.chat.id)
     if back == "/start":
         say_hello(message)
-    elif back == "/customers":
-        customer_list(message)
     elif back == "/main_customers":
-        customer_list(message)
+        main_customer_list(message)
     elif back == "None":
         print("None")
     else:
@@ -94,37 +94,11 @@ def region_details(message):
         bot.send_message(message.chat.id, reg_rep, parse_mode='HTML')
 
 
-@bot.message_handler(commands=["nextCustomers"])
-def next_customers(message):
-    try:
-        for i in range(5):
-            report, length = States.get_customers(message.chat.id)
-            bot.send_message(message.chat.id, report, parse_mode='HTML')
-        if length > 0:
-            bot.send_message(message.chat.id, '1) Cледующие 5: <i>/nextCustomers</i>\n'
-                                              '2) Вернуться в главное меню: <i>/menu</i>', parse_mode='HTML')
-        else:
-            bot.send_message(message.chat.id, 'Конец списка ...\n'
-                                              'Вернуться в главное меню: <i>/menu</i>', parse_mode='HTML')
-    except:
-        bot.send_message(message.chat.id, 'Конец списка ...\n'
-                                          'Вернуться в главное меню: <i>/menu</i>', parse_mode='HTML')
-
-
-@bot.message_handler(commands=["customers"])
-def customer_list(message):
-    """ Функция записывает в ведис стэк клиентов """
-    customers = sql_requests.customers_list()
-    States.add_customers(message.chat.id, customers)
-    next_customers(message)
-
-
 @bot.message_handler(commands=["main_customers"])
 def main_customer_list(message):
     """ Функция записывает в ведис стэк клиентов """
-    customers = sql_requests.main_customers_list()
-    States.add_customers(message.chat.id, customers)
-    next_customers(message)
+    customers = sql_requests.Customers()
+    bot.send_message(message.chat.id, customers.render_to_message(), parse_mode='HTML')
 
 
 @bot.message_handler(regexp="/\d{10}")  # customer_inn, customer details
@@ -142,7 +116,7 @@ def customer_details(message):
 
     # ---------------------   ОБЩИЕ ДАННЫЕ ПО КОНТРАГЕНТУ   ---------------------
     # Пытаюсь получить отчет из СУБД и записать в переменную "mes"
-    mes = sql_requests.customer_details(message.text[1:])
+    mes = sql_requests.Customers.customer_details(message.text[1:])
     if mes:
         # Если в отчет из СУБД вернулся то отправляю его
         bot.send_message(message.chat.id, mes, parse_mode="HTML")
@@ -150,7 +124,7 @@ def customer_details(message):
         # а иначе шлю запрос в DADATA API и делаю INSERT в СУБД
         try:
             loader.find_customer(message.text[1:])
-            mes = sql_requests.customer_details(message.text[1:])
+            mes = sql_requests.Customers.customer_details(message.text[1:])
             bot.send_message(message.chat.id, mes, parse_mode="HTML")
         except IndexError as e:
             # Если IndexError то значит такого контрагента нет ни в одной СУБД

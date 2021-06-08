@@ -15,9 +15,55 @@ import sql_requests
 import requests
 import config
 from bs4 import BeautifulSoup
+import numpy as np
+import torch
+from torch import nn
+from nltk.corpus import stopwords
+import pickle
+import pymorphy2
 
+morph = pymorphy2.MorphAnalyzer()
+stopWords = stopwords.words("russian")
+
+with open("/home/eugene/Projects/loader/ml_classifiers/data.pkl", "rb") as pkl_handle:
+    vocab = pickle.load(pkl_handle)
+
+# torch_nn_classifier = torch.load('/home/eugene/Projects/loader/ml_classifiers/trained_cls_model')
 svm_type_classifier = joblib.load('/home/eugene/Projects/loader/ml_classifiers/svm_type_classifier.joblib')
 svm_category_classifier = joblib.load('/home/eugene/Projects/loader/ml_classifiers/svm_category_classifier.joblib')
+
+# ================================== CHROME OPTIONS ==================================
+
+chrome_options = Options()
+chrome_options.add_argument("no-sandbox")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--window-size=1580,920")
+chrome_options.add_argument('--disable-dev-shm-usage')
+CHROMEDRIVER_PATH = '/home/eugene/Projects/loader/chromedriver'
+
+
+# ================================== DAS CLS TORCH MODEL ==================================
+
+
+class Classifier:
+    def __init__(self, string):
+        pattern = r'[А-Яа-яЁёA-Za-z0-9\+\,\/\-\. ]+'
+        words = re.findall(pattern, string.lower().strip())
+        tokens = ' '.join([word.strip().lower() for word in words if word not in stopWords])
+        pattern = r'(?<=[A-Za-zА-Яа-яЁё])-(?=[A-Za-zА-Яа-яЁё ])'
+        tokens = re.sub(pattern, ' ', tokens)
+        pattern = r'(?<=[0-9])(?=км)'
+        tokens = re.sub(pattern, ' ', tokens)
+        tokens = tokens.split(" ")
+        tokens = [morph.parse(word)[0].normal_form for word in tokens if word not in stopWords]
+        tokens = [vocab[token] for token in tokens]
+        self.tensor = torch.tensor(tokens).unsqueeze(0)
+
+    # def get_class(self):
+    #     return torch.nn.functional.softmax(torch_nn_classifier(self.tensor)).data
+
+    def __str__(self):
+        return torch.tensor(self.tensor).unsqueeze(0)
 
 
 # ================================== ЗАГРУЗКА ТЕНДЕРОВ ==================================
@@ -30,15 +76,10 @@ def update_tenders(customer_inn):
     :param customer_inn:
     :return:
     """
-    # vdisplay = Xvfb()
-    # vdisplay.start()
-    latest_date = sql_requests.get_latest_date_by_customer(customer_inn) - datetime.timedelta(days=2)
+    latest_date = sql_requests.Customers.get_latest_date_by_customer(customer_inn) - datetime.timedelta(days=2)
     print(type(latest_date), latest_date)
-    chrome_options = Options()
-    chrome_options.add_argument("no-sandbox")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1580,920")
-    driver = webdriver.Chrome('/home/eugene/Projects/loader/chromedriver', chrome_options=chrome_options)
+    new_tenders_count = 0
+    driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
     driver.get("https://zakupki.gov.ru/")
     input_search = driver.find_element_by_id("quickSearchForm_header_searchString")
     driver.execute_script("arguments[0].click();", input_search)
@@ -46,7 +87,6 @@ def update_tenders(customer_inn):
     time.sleep(0.5)
     input_search.submit()
     time.sleep(random.randint(1, 3))
-    tenders = []
     # Запускаем цикл сбора информации и складываем в tenders
     while True:
         time.sleep(0.5)
@@ -87,27 +127,26 @@ def update_tenders(customer_inn):
                 print(f'Exception erased with number {i}')
         time.sleep(0.5)
         if new_tenders:
-            tenders.extend(new_tenders)
+            for t in new_tenders:
+                # Идем циклом по тендерам и вставляем в СУБД
+                tender = classify_tender(t)
+                print(tender['fields']['name'])
+                print(tender['fields']['type'], tender['fields']['category'])
+                try:
+                    sql_requests.insert_into_tendersapp_tender(tender)
+                    new_tenders_count += 1
+                except errors.lookup('42601') as e:
+                    # psycopg2.errors.SyntaxError
+                    print(f"WARNING!!! in tender {tender} raised an exception {e}")
+                    pass
+            time.sleep(random.randint(1, 3))
             button_next = driver.find_element_by_class_name("paginator-button-next")
             driver.execute_script("arguments[0].click();", button_next)
-            time.sleep(random.randint(1, 3))
         else:
-            print(f'Обновлено {len(tenders)}!')
+            print(f'Обновлено {new_tenders_count}!')
             break
     driver.close()
-    # vdisplay.stop()
-    for t in tenders:
-        # Идем циклом по тендерам и вставляем в СУБД
-        tender = classify_tender(t)
-        print(tender['fields']['name'])
-        print(tender['fields']['type'], tender['fields']['category'])
-        try:
-            sql_requests.insert_into_tendersapp_tender(tender)
-        except errors.lookup('42601') as e:
-            # psycopg2.errors.SyntaxError
-            print(f"WARNING!!! in tender {tender} raised an exception {e}")
-            pass
-    return len(tenders)
+    return new_tenders_count
 
 
 def download_tenders(customer_inn):
@@ -119,11 +158,7 @@ def download_tenders(customer_inn):
 
     vdisplay = Xvfb()
     vdisplay.start()
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    driver = webdriver.Chrome('/usr/bin/chromedriver', chrome_options=chrome_options)
+    driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
     driver.get("https://zakupki.gov.ru/")
     input_search = driver.find_element_by_id("quickSearchForm_header_searchString")
     input_search.click()
@@ -199,11 +234,7 @@ def download_tenders(customer_inn):
 def download_plans(customer_inn):
     vdisplay = Xvfb()
     vdisplay.start()
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    driver = webdriver.Chrome('/usr/bin/chromedriver', chrome_options=chrome_options)
+    driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
     driver.get("https://zakupki.gov.ru/epz/orderplan/search/results.html?morphology=on&search-filter="
                "%D0%94%D0%B0%D1%82%D0%B5+%D1%80%D0%B0%D0%B7%D0%BC%D0%B5%D1%89%D0%B5%D0%BD%D0%B8%D1%8F"
                "&structured=true&fz44=on&customerPlaceWithNested=on&actualPeriodRangeYearFrom=2020"
@@ -431,12 +462,7 @@ def download_documents(chat_id: int, customer_inn: str):
             download_dir = f"/home/jeka/Projects/loader/documents/{customer_inn}/{project}"
 
             # Запускаю хром драйвер с настроками
-            chrome_options = Options()
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--window-size=1580,920")
-            driver = webdriver.Chrome('/usr/bin/chromedriver', chrome_options=chrome_options)
+            driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
             driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
             params = {'cmd': 'Page.setDownloadBehavior',
                       'params': {'behavior': 'allow', 'downloadPath': download_dir}}
