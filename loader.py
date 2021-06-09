@@ -464,15 +464,15 @@ def download_documents(chat_id: int, customer_inn: str):
     # Шаг 1. Загружаем айдишники проектов по заказчику из БД
     projects = sql_requests.Customers.get_projects_list(customer_inn)
     mes = f"В базе данных {len(projects)} целевых тендера"
-    print(mes)
+    # print(mes)
     bot.send_message(chat_id, mes)
     company_title = sql_requests.get_company_title(customer_inn)
 
     # Шаг 2. Проверяем есть ли уже эта документация в БД или проверяем на этапе загрузки... Пока хз
     projects_directory = os.path.join(config.FILE_STORAGE, customer_inn)
     mes = f"Уже загружено на диск {len(os.listdir(projects_directory))} проекта"
-    print(mes)
-    print(os.listdir(projects_directory))
+    # print(mes)
+    # print(os.listdir(projects_directory))
     bot.send_message(chat_id, mes)
     bot.send_message(chat_id, f"Начинаем загрузку проектов {company_title['title']}")
     projects = [p for p in projects if p not in os.listdir(projects_directory)]
@@ -495,7 +495,7 @@ def download_documents(chat_id: int, customer_inn: str):
 
             # В окно страницы вводится номер тендера (проекта)
             bot.send_message(chat_id, f"Начинаем загрузку проекта {project}")
-            print(f"Начинаем загрузку проекта {project}")
+            # print(f"Начинаем загрузку проекта {project}")
             input_search = driver.find_element_by_class_name("search__input")
             driver.execute_script("arguments[0].click();", input_search)
 
@@ -545,22 +545,22 @@ def download_documents(chat_id: int, customer_inn: str):
                 except WebDriverException as e:
                     print(e)
                     pass
-            if is_downloaded(download_dir, chat_id):
+            if os.path.isdir(download_dir) and is_downloaded(download_dir, chat_id):
                 projects_count -= 1
                 bot.send_message(chat_id, f"Осталось загрузить {projects_count} проекта(-ов)")
-                print(f"Осталось загрузить {projects_count} проекта(-ов)")
+                # print(f"Осталось загрузить {projects_count} проекта(-ов)")
                 time.sleep(5)
             # Закрываем окно
             driver_2.close()
             driver.quit()
         except (NoSuchElementException, IndexError, requests.exceptions.ConnectionError):
-            print(f"500 SERVER ERROR on project {project}")
+            # print(f"500 SERVER ERROR on project {project}")
             bot.send_message(chat_id, f"500 SERVER ERROR on project {project}")
             driver.quit()
             time.sleep(5)
 
     bot.send_message(chat_id, f"Загрузка проектов {company_title['title']} завершена")
-    print(f"Загрузка проектов {company_title} завершена")
+    # print(f"Загрузка проектов {company_title} завершена")
     return projects
 
 
