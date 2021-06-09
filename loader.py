@@ -462,24 +462,31 @@ def download_documents(chat_id: int, customer_inn: str):
     :return:
     """
     # Шаг 1. Загружаем айдишники проектов по заказчику из БД
-    projects = sql_requests.get_projects_list(customer_inn)
-    projects_count = len(projects)
+    projects = sql_requests.Customers.get_projects_list(customer_inn)
+    mes = f"В базе данных {len(projects)} целевых тендера"
+    print(mes)
+    bot.send_message(chat_id, mes)
     company_title = sql_requests.get_company_title(customer_inn)
-    bot.send_message(chat_id, f"Начинаем загрузку проектов {company_title['title']}")
-    bot.send_message(chat_id, f"Будет загружено {projects_count} объекта(-ов)")
-    print(f"Начинаем загрузку проектов контрагента {company_title['title']}")
-    print(f"Будет загружено {projects_count} объекта(-ов)")
-    print(projects)
-    time.sleep(5)
+
     # Шаг 2. Проверяем есть ли уже эта документация в БД или проверяем на этапе загрузки... Пока хз
+    projects_directory = os.path.join(config.FILE_STORAGE, customer_inn)
+    mes = f"Уже загружено на диск {len(os.listdir(projects_directory))} проекта"
+    print(mes)
+    print(os.listdir(projects_directory))
+    bot.send_message(chat_id, mes)
+    bot.send_message(chat_id, f"Начинаем загрузку проектов {company_title['title']}")
+    projects = [p for p in projects if p not in os.listdir(projects_directory)]
+    projects_count = len(projects)
+    bot.send_message(chat_id, f"Будет загружено {projects_count} объекта(-ов)")
+    time.sleep(5)
 
     # Шаг 3. Если такой документации в БД нет, то грузим
     for project in projects:
         try:
-            download_dir = f"/home/jeka/Projects/loader/documents/{customer_inn}/{project}"
+            download_dir = os.path.join(projects_directory, project)
 
             # Запускаю хром драйвер с настроками
-            driver = webdriver.Chrome(CHROMEDRIVER_PATH, chrome_options=chrome_options)
+            driver = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, chrome_options=chrome_options)
             driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
             params = {'cmd': 'Page.setDownloadBehavior',
                       'params': {'behavior': 'allow', 'downloadPath': download_dir}}
@@ -525,16 +532,6 @@ def download_documents(chat_id: int, customer_inn: str):
             divs = soup.find_all("div", class_=pattern)
             attachments = []
 
-            # Создаю папку для загрузки документов и указываю для хром драйвера
-            try:
-                os.makedirs(f"/home/jeka/Projects/loader/documents/{customer_inn}/{project}")
-            except OSError:
-                bot.send_message(chat_id, f"Папка проекта {project} уже существует")
-                print(f"Папка проекта {project} уже существует")
-            else:
-                print(f"Создана папка проекта {project}")
-                time.sleep(random.randint(2, 5))
-
             for div in divs:
                 pattern = re.compile(r'attachment row *')
                 attachments.extend(div.find_all("div", class_=pattern))
@@ -548,7 +545,7 @@ def download_documents(chat_id: int, customer_inn: str):
                 except WebDriverException as e:
                     print(e)
                     pass
-            if is_downloaded(f"/home/jeka/Projects/loader/documents/{customer_inn}/{project}", chat_id):
+            if is_downloaded(download_dir, chat_id):
                 projects_count -= 1
                 bot.send_message(chat_id, f"Осталось загрузить {projects_count} проекта(-ов)")
                 print(f"Осталось загрузить {projects_count} проекта(-ов)")
