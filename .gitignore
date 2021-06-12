@@ -5,3 +5,4 @@
 env_loader/
 config.py
 storage/
+.ipynb_checkpoints/*
